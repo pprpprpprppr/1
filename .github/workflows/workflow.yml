@@ -1,0 +1,44 @@
+name: Workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Gost
+        run: |
+          wget https://github.com/go-gost/gost/releases/download/v3.2.6/gost_3.2.6_linux_amd64v3.tar.gz -O gost.tar.gz
+          tar -xzf gost.tar.gz
+          chmod +x gost
+
+      - name: Install Cloudflared
+        run: |
+          wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared
+          chmod +x cloudflared
+
+      - name: Run Gost and Cloudflare Tunnel
+        run: |
+          ./gost -L ws://${{ secrets.GOST }}@localhost:8080 > /dev/null 2>&1 &
+
+          sleep 2
+
+          ./cloudflared tunnel --url http://localhost:8080 > cf.log 2>&1 &
+
+          sleep 30
+
+          CF_URL=$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' cf.log | head -n 1)
+
+          if [ -z "$CF_URL" ]; then
+            cat cf.log
+            exit 1
+          else
+            echo "$CF_URL"
+          fi
+
+          sleep 6h
